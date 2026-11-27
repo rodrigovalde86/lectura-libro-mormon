@@ -697,7 +697,7 @@ export default function App() {
                     <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                     <input
                       type="text"
-                      placeholder="Ej. Familia Valdebenito"
+                      placeholder="Nombre o Familia"
                       value={nombreForm}
                       onChange={(e) => setNombreForm(e.target.value)}
                       className="w-full bg-[#0c1626] border border-slate-600 focus:border-[#C9A808] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white outline-none"
