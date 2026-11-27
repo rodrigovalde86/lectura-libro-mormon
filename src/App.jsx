@@ -3,29 +3,20 @@ import { supabase } from './supabase';
 import {
   BookOpen, Calendar, CheckCircle2, Circle, Flame, Palette,
   LogOut, Sparkles, ChevronLeft, ChevronRight, Lock, User,
-  Award, Check
+  Award, Check, ExternalLink
 } from 'lucide-react';
+import { PLAN_LECTURAS } from './plan.js';
 
 // ============================================================================
-// 1. DATOS EXACTOS DEL LIBRO DE MORMÓN (239 CAPÍTULOS / 6,604 VERSÍCULOS)
+// 1. PLAN DE 365 LECTURAS (6.604 VERSÍCULOS, LARGO PAREJO) Y ENLACES EN LÍNEA
 // ============================================================================
-const LIBROS_BOM = [
-  { nombre: '1 Nefi', caps: [22, 24, 31, 38, 22, 6, 22, 38, 6, 22, 36, 23, 42, 30, 36, 39, 55, 25, 24, 22, 26, 31] },
-  { nombre: '2 Nefi', caps: [32, 30, 25, 35, 34, 18, 11, 25, 54, 25, 8, 22, 26, 11, 30, 13, 25, 22, 21, 34, 16, 6, 22, 32, 30, 33, 35, 32, 14, 18, 21, 9, 15] },
-  { nombre: 'Jacob', caps: [19, 35, 14, 18, 77, 13, 27] },
-  { nombre: 'Enós', caps: [27] },
-  { nombre: 'Jarom', caps: [15] },
-  { nombre: 'Omni', caps: [30] },
-  { nombre: 'Palabras de Mormón', caps: [18] },
-  { nombre: 'Mosíah', caps: [18, 41, 27, 30, 15, 7, 33, 21, 19, 22, 29, 37, 35, 12, 31, 15, 20, 35, 29, 26, 36, 16, 39, 25, 24, 39, 37, 20, 47] },
-  { nombre: 'Alma', caps: [33, 38, 27, 20, 62, 8, 27, 32, 34, 32, 46, 37, 31, 29, 19, 21, 39, 43, 36, 30, 26, 35, 18, 30, 17, 37, 30, 14, 17, 60, 38, 43, 23, 41, 16, 30, 47, 15, 19, 26, 15, 31, 54, 24, 24, 41, 36, 25, 30, 40, 37, 40, 23, 24, 35, 57, 36, 41, 13, 36, 21, 52, 17] },
-  { nombre: 'Helamán', caps: [34, 14, 37, 26, 52, 41, 29, 28, 41, 19, 38, 26, 39, 31, 17, 25] },
-  { nombre: '3 Nefi', caps: [30, 19, 26, 33, 26, 30, 26, 25, 22, 19, 41, 48, 34, 27, 24, 20, 25, 39, 36, 46, 29, 17, 14, 18, 6, 21, 33, 40, 9, 2] },
-  { nombre: '4 Nefi', caps: [49] },
-  { nombre: 'Mormón', caps: [19, 29, 22, 23, 24, 22, 10, 41, 37] },
-  { nombre: 'Éter', caps: [43, 25, 28, 19, 6, 30, 27, 26, 35, 34, 22, 41, 31, 31, 34] },
-  { nombre: 'Moroni', caps: [4, 3, 4, 3, 2, 9, 48, 30, 26, 34] }
+const FECHA_INICIO = new Date(2027, 0, 1);
+const SLUGS_BIBLIOTECA = [
+  '1-ne', '2-ne', 'jacob', 'enos', 'jarom', 'omni', 'w-of-m',
+  'mosiah', 'alma', 'hel', '3-ne', '4-ne', 'morm', 'ether', 'moro'
 ];
+const URL_BIBLIOTECA = 'https://www.churchofjesuschrist.org/study/scriptures/bofm';
+
 
 const MESES = [
   { nombre: 'Enero', dias: 31, tema: 'El Árbol de la Vida' },
@@ -43,50 +34,28 @@ const MESES = [
 ];
 
 function generarPlan365() {
-  const versiculos = [];
-  LIBROS_BOM.forEach((libro) => {
-    libro.caps.forEach((totalVers, idxCap) => {
-      for (let v = 1; v <= totalVers; v++) {
-        versiculos.push({ libro: libro.nombre, cap: idxCap + 1, ver: v });
-      }
-    });
-  });
-
-  const totalV = versiculos.length;
   const plan = [];
-  let diaGlobal = 1;
-
+  let dia = 1;
   for (let m = 0; m < 12; m++) {
     for (let d = 1; d <= MESES[m].dias; d++) {
-      const inicioIdx = Math.floor(((diaGlobal - 1) * totalV) / 365);
-      const finIdx = Math.floor((diaGlobal * totalV) / 365) - 1;
-      const vIni = versiculos[inicioIdx];
-      const vFin = versiculos[finIdx];
-
-      let lecturaTexto = '';
-      if (vIni.libro === vFin.libro) {
-        if (vIni.cap === vFin.cap) {
-          lecturaTexto = `${vIni.libro} ${vIni.cap}:${vIni.ver}–${vFin.ver}`;
-        } else {
-          lecturaTexto = `${vIni.libro} ${vIni.cap}:${vIni.ver} – ${vFin.cap}:${vFin.ver}`;
-        }
-      } else {
-        lecturaTexto = `${vIni.libro} ${vIni.cap}:${vIni.ver} – ${vFin.libro} ${vFin.cap}:${vFin.ver}`;
-      }
-
+      const [lectura, cantidadVersiculos, minutos, libro, cap, vIni] = PLAN_LECTURAS[dia - 1];
+      const ancla = vIni > 1 ? `&id=p${vIni}#p${vIni}` : '';
       plan.push({
-        dia: diaGlobal,
+        dia,
         mesIdx: m,
         diaMes: d,
         fechaCorta: `${d} ${MESES[m].nombre.slice(0, 3)}`,
-        lectura: lecturaTexto,
-        cantidadVersiculos: finIdx - inicioIdx + 1
+        lectura,
+        cantidadVersiculos,
+        minutos,
+        enlace: `${URL_BIBLIOTECA}/${SLUGS_BIBLIOTECA[libro]}/${cap}?lang=spa${ancla}`
       });
-      diaGlobal++;
+      dia++;
     }
   }
   return plan;
 }
+
 
 // ============================================================================
 // 2. COMPONENTE DE LOS 12 MURALES MENSUALES INTERACTIVOS
@@ -293,6 +262,17 @@ function MuralMensualSVG({ mesIdx, diasLeidosMes, totalDiasMes }) {
   );
 }
 
+function GoogleIcono() {
+  return (
+    <svg viewBox="0 0 48 48" className="w-5 h-5" aria-hidden="true">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+    </svg>
+  );
+}
+
 // ============================================================================
 // 3. APLICACIÓN PRINCIPAL CONECTADA A SUPABASE
 // ============================================================================
@@ -316,14 +296,16 @@ export default function App() {
   const [mesFiltroAnual, setMesFiltroAnual] = useState(0);
   const [mesMural, setMesMural] = useState(0);
 
-  const diaHoyNumero = useMemo(() => {
+  const diasParaInicio = useMemo(() => {
     const ahora = new Date();
-    const inicioAnio = new Date(ahora.getFullYear(), 0, 0);
-    const diff = ahora - inicioAnio;
-    const unDia = 1000 * 60 * 60 * 24;
-    const dia = Math.floor(diff / unDia);
-    return Math.min(Math.max(dia, 1), 365);
+    const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+    return Math.round((FECHA_INICIO - hoy) / 86400000);
   }, []);
+
+  const diaHoyNumero = useMemo(
+    () => Math.min(Math.max(1 - diasParaInicio, 1), 365),
+    [diasParaInicio]
+  );
 
   const cargarProgresoNube = async (user) => {
     const { data, error } = await supabase
@@ -413,6 +395,23 @@ export default function App() {
           : err.message || 'Ocurrió un error al conectar.'
       );
     } finally {
+      setProcesandoAuth(false);
+    }
+  };
+
+  const entrarConGoogle = async () => {
+    setErrorAuth('');
+    setProcesandoAuth(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    });
+    if (error) {
+      setErrorAuth(
+        /not enabled|unsupported/i.test(error.message || '')
+          ? 'El ingreso con Google todavía no está activado.'
+          : error.message || 'No se pudo conectar con Google.'
+      );
       setProcesandoAuth(false);
     }
   };
@@ -520,6 +519,23 @@ export default function App() {
             >
               Registro Rápido
             </button>
+          </div>
+
+          <div className="relative z-10 mb-5">
+            <button
+              type="button"
+              onClick={entrarConGoogle}
+              disabled={procesandoAuth}
+              className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-100 disabled:opacity-50 text-slate-800 font-semibold py-3 rounded-xl shadow-lg transition"
+            >
+              <GoogleIcono />
+              <span>Continuar con Google</span>
+            </button>
+            <div className="flex items-center gap-3 mt-5 text-[11px] uppercase tracking-widest text-slate-400">
+              <span className="flex-1 h-px bg-slate-600" />
+              <span>o con tu correo</span>
+              <span className="flex-1 h-px bg-slate-600" />
+            </div>
           </div>
 
           <form onSubmit={manejarAuth} className="space-y-4 relative z-10">
@@ -686,12 +702,18 @@ export default function App() {
 
         {vistaActiva === 'hoy' && (
           <div className="bg-[#14233C] border-2 border-[#C9A808] rounded-3xl p-6 sm:p-8 shadow-2xl">
+            {diasParaInicio > 0 && (
+              <p className="text-sm bg-[#0c1626] border border-[#C9A808]/50 text-[#C9A808] rounded-xl p-3 mb-4">
+                El plan empieza el 1 de enero de 2027 (faltan {diasParaInicio} {diasParaInicio === 1 ? 'día' : 'días'}).
+                Mientras tanto puedes ver cómo es la primera lectura.
+              </p>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <span className="text-xs font-bold uppercase tracking-widest bg-[#0c1626] text-[#C9A808] px-3 py-1.5 rounded-full border border-[#C9A808]/40">
                 Día {lecturaHoy.dia} de 365 • {lecturaHoy.fechaCorta}
               </span>
               <span className="text-xs text-slate-300">
-                {lecturaHoy.cantidadVersiculos} versículos asignados hoy
+                {lecturaHoy.cantidadVersiculos} versículos • unos {lecturaHoy.minutos} min
               </span>
             </div>
 
@@ -722,6 +744,16 @@ export default function App() {
                 </>
               )}
             </button>
+
+            <a
+              href={lecturaHoy.enlace}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#C9A808] hover:underline"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Leer en línea (Biblioteca del Evangelio)
+            </a>
           </div>
         )}
 
