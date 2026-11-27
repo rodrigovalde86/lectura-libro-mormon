@@ -3,7 +3,7 @@ import { supabase } from './supabase';
 import {
   BookOpen, Calendar, CheckCircle2, Circle, Flame, Palette,
   LogOut, Sparkles, ChevronLeft, ChevronRight, Lock, User,
-  Award, Check, Compass
+  Award, Check, Compass, UserPlus, Share2, Copy, MessageCircle
 } from 'lucide-react';
 import { PLAN_LECTURAS } from './plan.js';
 import { CITAS_LIAHONA, DIAS_POR_CITA } from './citas.js';
@@ -12,6 +12,9 @@ import { CITAS_LIAHONA, DIAS_POR_CITA } from './citas.js';
 // 1. PLAN DE 365 LECTURAS (6.604 VERSÍCULOS, LARGO PAREJO) Y ENLACES EN LÍNEA
 // ============================================================================
 const FECHA_INICIO = new Date(2027, 0, 1);
+const URL_APP = 'https://lectura-libro-mormon.vercel.app';
+const MENSAJE_INVITACION =
+  'Te invito a leer el Libro de Mormón con nosotros (Lectura B° Maldonado). Empezamos el 1 de enero de 2027. Entra aquí con tu cuenta de Google o tu correo:';
 const SLUGS_BIBLIOTECA = [
   '1-ne', '2-ne', 'jacob', 'enos', 'jarom', 'omni', 'w-of-m',
   'mosiah', 'alma', 'hel', '3-ne', '4-ne', 'morm', 'ether', 'moro'
@@ -359,6 +362,8 @@ export default function App() {
   const [diasCompletados, setDiasCompletados] = useState([]);
   const [guardandoNube, setGuardandoNube] = useState(false);
   const [errorNube, setErrorNube] = useState('');
+  const [verInvitar, setVerInvitar] = useState(false);
+  const [enlaceCopiado, setEnlaceCopiado] = useState(false);
   const [progresoListo, setProgresoListo] = useState(false);
   const usuarioCargado = useRef(null);
 
@@ -521,6 +526,24 @@ export default function App() {
       );
     } finally {
       setProcesandoAuth(false);
+    }
+  };
+
+  const compartirInvitacion = async () => {
+    try {
+      await navigator.share({ title: 'Lectura B° Maldonado', text: MENSAJE_INVITACION, url: URL_APP });
+    } catch (e) {
+      /* la persona cerró el menú de compartir */
+    }
+  };
+
+  const copiarEnlace = async () => {
+    try {
+      await navigator.clipboard.writeText(`${MENSAJE_INVITACION} ${URL_APP}`);
+      setEnlaceCopiado(true);
+      setTimeout(() => setEnlaceCopiado(false), 2500);
+    } catch (e) {
+      window.prompt('Copia este mensaje:', `${MENSAJE_INVITACION} ${URL_APP}`);
     }
   };
 
@@ -773,6 +796,14 @@ export default function App() {
             )}
 
             <button
+              onClick={() => setVerInvitar((v) => !v)}
+              className="flex items-center gap-1.5 text-xs font-bold text-[#C9A808] bg-[#0c1626] px-3 py-2 rounded-xl border border-[#C9A808]/60 hover:border-[#C9A808] transition"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Invitar</span>
+            </button>
+
+            <button
               onClick={cerrarSesion}
               className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-[#C9A808] bg-[#0c1626] px-3 py-2 rounded-xl border border-slate-700 transition"
             >
@@ -784,6 +815,56 @@ export default function App() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 pt-6 space-y-6">
+        {verInvitar && (
+          <div className="bg-[#14233C] border-2 border-[#C9A808] rounded-3xl p-5 sm:p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-serif font-bold text-white">Invita a tus amigos y familia</h2>
+                <p className="text-xs text-slate-300 mt-1">
+                  Les llega un mensaje con el enlace de la app. Ellos entran con su cuenta de Google o con su correo.
+                </p>
+              </div>
+              <button
+                onClick={() => setVerInvitar(false)}
+                className="text-slate-400 hover:text-white text-sm px-2"
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(`${MENSAJE_INVITACION} ${URL_APP}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition"
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span>Enviar por WhatsApp</span>
+              </a>
+
+              {typeof navigator !== 'undefined' && navigator.share && (
+                <button
+                  onClick={compartirInvitacion}
+                  className="flex-1 flex items-center justify-center gap-2 bg-[#C9A808] hover:bg-[#b59607] text-[#14233C] font-bold py-3 rounded-xl transition"
+                >
+                  <Share2 className="w-5 h-5" />
+                  <span>Compartir…</span>
+                </button>
+              )}
+
+              <button
+                onClick={copiarEnlace}
+                className="flex-1 flex items-center justify-center gap-2 bg-[#0c1626] hover:bg-[#0c1626]/70 text-white font-bold py-3 rounded-xl border border-slate-600 transition"
+              >
+                <Copy className="w-5 h-5" />
+                <span>{enlaceCopiado ? '¡Copiado!' : 'Copiar mensaje'}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {errorNube && (
           <p className="text-sm text-red-300 bg-red-950/50 border border-red-500/40 rounded-xl p-3">
             {errorNube}
