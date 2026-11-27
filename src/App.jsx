@@ -14,7 +14,7 @@ import { CITAS_LIAHONA, DIAS_POR_CITA } from './citas.js';
 const FECHA_INICIO = new Date(2027, 0, 1);
 const URL_APP = 'https://lectura-libro-mormon.vercel.app';
 const MENSAJE_INVITACION =
-  'Te invito a leer el Libro de Mormón con nosotros (Lectura B° Maldonado). Empezamos el 1 de enero de 2027. Entra aquí con tu cuenta de Google o tu correo:';
+  'Te invito a leer el Libro de Mormón en 365 días con esta app gratuita. Empezamos el 1 de enero de 2027. Entra aquí con tu cuenta de Google o tu correo:';
 const SLUGS_BIBLIOTECA = [
   '1-ne', '2-ne', 'jacob', 'enos', 'jarom', 'omni', 'w-of-m',
   'mosiah', 'alma', 'hel', '3-ne', '4-ne', 'morm', 'ether', 'moro'
@@ -531,7 +531,7 @@ export default function App() {
 
   const compartirInvitacion = async () => {
     try {
-      await navigator.share({ title: 'Lectura B° Maldonado', text: MENSAJE_INVITACION, url: URL_APP });
+      await navigator.share({ title: 'Lectura del Libro de Mormón', text: MENSAJE_INVITACION, url: URL_APP });
     } catch (e) {
       /* la persona cerró el menú de compartir */
     }
