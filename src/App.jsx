@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { PLAN_LECTURAS } from './plan.js';
 import { CITAS_LIAHONA, DIAS_POR_CITA } from './citas.js';
-import { Onboarding, FamiliaVista } from './Familia.jsx';
+import { Onboarding, SocialVista } from './Familia.jsx';
 
 // ============================================================================
 // 1. PLAN DE 365 LECTURAS (6.604 VERSÍCULOS, LARGO PAREJO) Y ENLACES EN LÍNEA
@@ -934,7 +934,7 @@ export default function App() {
             { id: 'semana', label: 'Semana', icon: Calendar },
             { id: 'anual', label: 'Plan Anual', icon: Check },
             { id: 'mural', label: 'Mural', icon: Palette },
-            { id: 'familia', label: 'Familia', icon: Users }
+            { id: 'familia', label: 'Comunidad', icon: Users }
           ].map((tab) => {
             const Icono = tab.icon;
             const activa = vistaActiva === tab.id;
@@ -1021,7 +1021,7 @@ export default function App() {
         {vistaActiva === 'hoy' && <Liahona diasLeidos={diasCompletados.length} />}
 
         {vistaActiva === 'familia' && familia && (
-          <FamiliaVista
+          <SocialVista
             familia={familia}
             perfilActivo={perfilActivo}
             setPerfilActivo={setPerfilActivo}

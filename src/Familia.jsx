@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 import {
-  Users, UserPlus, Copy, Pencil, Trash2, KeyRound, BookOpen, CheckCircle2, Circle, Heart, Bell
+  Users, UserPlus, Copy, Pencil, Trash2, KeyRound, BookOpen, CheckCircle2, Circle, Heart, Bell, MessageCircle
 } from 'lucide-react';
 
 export const MENSAJES_ANIMO = {
@@ -11,6 +11,7 @@ export const MENSAJES_ANIMO = {
   gracias: { icono: '🙏', texto: '¡Gracias por tu ejemplo!' }
 };
 
+const URL_APP = 'https://lectura-libro-mormon.vercel.app';
 const PARENTESCOS = ['Esposo/a', 'Hijo/a', 'Padre/Madre', 'Abuelo/a', 'Hermano/a', 'Amigo/a'];
 
 const inputCls =
@@ -231,18 +232,6 @@ export function FamiliaVista({ familia, perfilActivo, setPerfilActivo, diaHoy, a
 
   const yaEnvie = (m) => (animos.enviados_hoy || []).some((x) => x.de === activo.id && x.a === m.id);
 
-  const marcarLeidos = async () => {
-    const paraIds = [...new Set(animos.recibidos.filter((a) => !a.leido).map((a) => a.para_id))];
-    setOcupado(true);
-    for (const id of paraIds) {
-      await supabase.rpc('marcar_animos_leidos', { p_miembro: id });
-    }
-    setOcupado(false);
-    await recargar();
-  };
-
-  const sinLeer = (animos.recibidos || []).filter((a) => !a.leido).length;
-
   return (
     <div className="space-y-5">
       <div className="bg-[#14233C] border border-[#C9A808]/60 rounded-3xl p-5 sm:p-6">
@@ -258,33 +247,6 @@ export function FamiliaVista({ familia, perfilActivo, setPerfilActivo, diaHoy, a
 
       {error && <p className="text-sm text-red-300 bg-red-950/50 border border-red-500/40 rounded-xl p-3">{error}</p>}
       {aviso && <p className="text-sm text-emerald-300 bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-3">{aviso}</p>}
-
-      {animos.recibidos && animos.recibidos.length > 0 && (
-        <div className="bg-[#14233C] border border-[#C9A808]/40 rounded-3xl p-5 sm:p-6 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-[#C9A808] text-xs font-bold uppercase tracking-widest">
-              <Bell className="w-4 h-4" /> Mensajes {sinLeer > 0 && <span className="bg-[#C9A808] text-[#14233C] rounded-full px-2 py-0.5">{sinLeer} nuevos</span>}
-            </div>
-            {sinLeer > 0 && (
-              <button onClick={marcarLeidos} disabled={ocupado} className="text-xs text-slate-300 hover:text-[#C9A808] underline underline-offset-2">
-                Marcar como leídos
-              </button>
-            )}
-          </div>
-          <ul className="space-y-2">
-            {animos.recibidos.slice(0, 8).map((a) => {
-              const msg = MENSAJES_ANIMO[a.tipo] || MENSAJES_ANIMO.animo;
-              return (
-                <li key={a.id} className={`text-sm rounded-xl px-3 py-2 border ${a.leido ? 'border-slate-700 text-slate-300' : 'border-[#C9A808]/60 text-white bg-[#0c1626]'}`}>
-                  <span className="mr-1">{msg.icono}</span>
-                  <strong className="text-[#C9A808]">{a.de_nombre}</strong>
-                  {a.para_id !== activo.id && <span className="text-slate-400"> a {a.para_nombre}</span>}: {msg.texto}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
 
       <div className="space-y-3">
         {miembros.map((m) => {
@@ -460,6 +422,331 @@ export function FamiliaVista({ familia, perfilActivo, setPerfilActivo, diaHoy, a
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================================
+// BANDEJA DE MENSAJES (familia y amigos)
+// ============================================================================
+function BandejaMensajes({ animos, perfilActivo, recargar }) {
+  const [ocupado, setOcupado] = useState(false);
+  const recibidos = animos.recibidos || [];
+  const sinLeer = recibidos.filter((a) => !a.leido).length;
+  if (recibidos.length === 0) return null;
+
+  const marcarLeidos = async () => {
+    const paraIds = [...new Set(recibidos.filter((a) => !a.leido).map((a) => a.para_id))];
+    setOcupado(true);
+    for (const id of paraIds) {
+      await supabase.rpc('marcar_animos_leidos', { p_miembro: id });
+    }
+    setOcupado(false);
+    await recargar();
+  };
+
+  return (
+    <div className="bg-[#14233C] border border-[#C9A808]/40 rounded-3xl p-5 sm:p-6 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[#C9A808] text-xs font-bold uppercase tracking-widest">
+          <Bell className="w-4 h-4" /> Mensajes
+          {sinLeer > 0 && <span className="bg-[#C9A808] text-[#14233C] rounded-full px-2 py-0.5">{sinLeer} nuevos</span>}
+        </div>
+        {sinLeer > 0 && (
+          <button onClick={marcarLeidos} disabled={ocupado} className="text-xs text-slate-300 hover:text-[#C9A808] underline underline-offset-2">
+            Marcar como leídos
+          </button>
+        )}
+      </div>
+      <ul className="space-y-2">
+        {recibidos.slice(0, 8).map((a) => {
+          const msg = MENSAJES_ANIMO[a.tipo] || MENSAJES_ANIMO.animo;
+          return (
+            <li key={a.id} className={`text-sm rounded-xl px-3 py-2 border ${a.leido ? 'border-slate-700 text-slate-300' : 'border-[#C9A808]/60 text-white bg-[#0c1626]'}`}>
+              <span className="mr-1">{msg.icono}</span>
+              <strong className="text-[#C9A808]">{a.de_nombre}</strong>
+              {a.para_id !== perfilActivo && <span className="text-slate-400"> a {a.para_nombre}</span>}: {msg.texto}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+// ============================================================================
+// PESTAÑA AMIGOS: enlazar cuentas de distintas familias
+// ============================================================================
+export function AmigosVista({ familia, perfilActivo, diaHoy, animos, recargar }) {
+  const [amistades, setAmistades] = useState(null);
+  const [codigo, setCodigo] = useState('');
+  const [animando, setAnimando] = useState(null);
+  const [error, setError] = useState('');
+  const [aviso, setAviso] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+
+  const activo = familia.miembros.find((m) => m.id === perfilActivo) || familia.miembros[0];
+
+  const cargar = async () => {
+    const { data, error: err } = await supabase.rpc('mis_amigos', { p_dia_hoy: diaHoy });
+    if (err) setError(err.message);
+    else setAmistades(data || []);
+  };
+
+  useEffect(() => {
+    cargar();
+  }, [diaHoy]);
+
+  const ejecutar = async (fn, mensajeOk) => {
+    setError('');
+    setAviso('');
+    setOcupado(true);
+    const { error: err } = await fn();
+    setOcupado(false);
+    if (err) {
+      setError(err.message);
+      return false;
+    }
+    if (mensajeOk) setAviso(mensajeOk);
+    await cargar();
+    await recargar();
+    return true;
+  };
+
+  const pedir = async (e) => {
+    e.preventDefault();
+    const ok = await ejecutar(
+      () => supabase.rpc('pedir_amistad', { p_de: activo.id, p_codigo: codigo }),
+      'Solicitud enviada. Cuando la acepte, podrán verse y animarse.'
+    );
+    if (ok) setCodigo('');
+  };
+
+  const textoCompartir = `Agrégame como amigo en la app de lectura del Libro de Mormón: abre ${URL_APP}, entra a la pestaña Comunidad → Amigos y escribe este código: ${activo.codigo_amigo}`;
+
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(activo.codigo_amigo);
+      setAviso('Código copiado.');
+    } catch (e) {
+      window.prompt('Tu código:', activo.codigo_amigo);
+    }
+  };
+
+  const yaEnvie = (a) => (animos.enviados_hoy || []).some((x) => x.de === a.mio && x.a === a.amigo_id);
+
+  if (amistades === null) {
+    return <p className="text-sm text-slate-300 text-center py-8">{error || 'Cargando amigos...'}</p>;
+  }
+
+  const recibidas = amistades.filter((a) => a.estado === 'pendiente' && a.direccion === 'recibida');
+  const enviadas = amistades.filter((a) => a.estado === 'pendiente' && a.direccion === 'enviada');
+  const amigos = amistades.filter((a) => a.estado === 'aceptada' && a.mio === activo.id);
+
+  return (
+    <div className="space-y-5">
+      {error && <p className="text-sm text-red-300 bg-red-950/50 border border-red-500/40 rounded-xl p-3">{error}</p>}
+      {aviso && <p className="text-sm text-emerald-300 bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-3">{aviso}</p>}
+
+      <div className="bg-[#14233C] border border-[#C9A808]/60 rounded-3xl p-5 sm:p-6 space-y-4">
+        <div>
+          <div className="flex items-center gap-2 text-[#C9A808] text-xs font-bold uppercase tracking-widest mb-1">
+            <Users className="w-4 h-4" /> Amigos de {activo.nombre}
+          </div>
+          <p className="text-xs text-slate-300">
+            Enlaza tu cuenta con la de familiares y amigos de otras familias. Se ven el avance y si leyeron hoy
+            (nunca el detalle) y se pueden animar.
+          </p>
+        </div>
+
+        <div className="bg-[#0c1626] rounded-2xl p-4 space-y-2">
+          <p className="text-xs text-slate-300">Tu código de amigo (compártelo para que te agreguen):</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={copiar} className="inline-flex items-center gap-2 text-lg tracking-[0.3em] font-bold text-[#C9A808] bg-[#14233C] border border-[#C9A808]/60 rounded-xl px-4 py-1.5">
+              {activo.codigo_amigo} <Copy className="w-4 h-4" />
+            </button>
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(textoCompartir)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl px-3 py-2"
+            >
+              <MessageCircle className="w-4 h-4" /> Enviar por WhatsApp
+            </a>
+          </div>
+        </div>
+
+        <form onSubmit={pedir} className="space-y-2">
+          <label className={labelCls}>Agregar a alguien con su código</label>
+          <div className="flex gap-2">
+            <input
+              className={`${inputCls} tracking-[0.25em] uppercase`}
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value)}
+              maxLength={7}
+              placeholder="CÓDIGO"
+            />
+            <button type="submit" disabled={ocupado || codigo.trim().length < 6} className="shrink-0 bg-[#C9A808] hover:bg-[#b59607] disabled:opacity-50 text-[#14233C] font-bold px-4 rounded-xl text-sm">
+              Enviar solicitud
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {recibidas.length > 0 && (
+        <div className="bg-[#14233C] border border-[#C9A808] rounded-3xl p-5 sm:p-6 space-y-3">
+          <h3 className="text-sm font-bold text-[#C9A808] uppercase tracking-widest">Solicitudes para aceptar</h3>
+          {recibidas.map((a) => (
+            <div key={a.amistad_id} className="flex flex-wrap items-center justify-between gap-2 bg-[#0c1626] rounded-xl px-3 py-2.5">
+              <p className="text-sm text-white">
+                <strong>{a.amigo_nombre}</strong> quiere ser amigo/a{a.mio !== activo.id ? ` de ${a.mio_nombre}` : ''}
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => ejecutar(() => supabase.rpc('responder_amistad', { p_id: a.amistad_id, p_acepta: true }), `Ahora ${a.amigo_nombre} y ${a.mio_nombre} son amigos.`)}
+                  disabled={ocupado} className="text-xs font-bold bg-[#C9A808] text-[#14233C] px-3 py-1.5 rounded-lg">Aceptar</button>
+                <button onClick={() => ejecutar(() => supabase.rpc('responder_amistad', { p_id: a.amistad_id, p_acepta: false }))}
+                  disabled={ocupado} className="text-xs text-slate-300 border border-slate-600 px-3 py-1.5 rounded-lg">Rechazar</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {amigos.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center bg-[#14233C] border border-slate-700 rounded-2xl p-5">
+            Todavía no tienes amigos enlazados. Comparte tu código o escribe el de alguien para empezar.
+          </p>
+        ) : (
+          amigos.map((a) => (
+            <div key={a.amistad_id} className="bg-[#14233C] border border-slate-700 rounded-2xl p-4 sm:p-5 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 shrink-0 rounded-full bg-[#0c1626] border border-[#C9A808]/60 flex items-center justify-center text-[#C9A808] font-bold">
+                    {a.amigo_nombre.charAt(0).toUpperCase()}
+                  </div>
+                  <p className="font-semibold text-white truncate">{a.amigo_nombre}</p>
+                </div>
+                <span className={`text-xs font-semibold flex items-center gap-1 shrink-0 ${a.leyo_hoy ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {a.leyo_hoy ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                  {a.leyo_hoy ? 'Leyó hoy' : 'Hoy no'}
+                </span>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs text-slate-300 mb-1">
+                  <span>Avance anual</span>
+                  <span className="text-[#C9A808] font-semibold">{a.porcentaje}%</span>
+                </div>
+                <div className="w-full h-2.5 bg-[#0c1626] rounded-full overflow-hidden border border-slate-700">
+                  <div className="h-full bg-gradient-to-r from-[#C9A808] to-amber-300" style={{ width: `${a.porcentaje}%` }} />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setAnimando(animando === a.amistad_id ? null : a.amistad_id)}
+                  disabled={yaEnvie(a)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-[#C9A808] bg-[#0c1626] border border-[#C9A808]/60 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-2 rounded-xl"
+                >
+                  <Heart className="w-4 h-4" /> {yaEnvie(a) ? 'Ya le escribiste hoy' : 'Animar'}
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm(`¿Dejar de ser amigo/a de ${a.amigo_nombre}?`)) {
+                      ejecutar(() => supabase.rpc('eliminar_amistad', { p_id: a.amistad_id }), 'Amistad eliminada.');
+                    }
+                  }}
+                  className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-red-300 bg-[#0c1626] border border-slate-700 px-3 py-2 rounded-xl"
+                >
+                  <Trash2 className="w-4 h-4" /> Quitar
+                </button>
+              </div>
+
+              {animando === a.amistad_id && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {Object.entries(MENSAJES_ANIMO).map(([tipo, msg]) => (
+                    <button
+                      key={tipo}
+                      onClick={async () => {
+                        const ok = await ejecutar(
+                          () => supabase.rpc('enviar_animo', { p_de: a.mio, p_a: a.amigo_id, p_tipo: tipo }),
+                          `Mensaje enviado a ${a.amigo_nombre}.`
+                        );
+                        if (ok) setAnimando(null);
+                      }}
+                      disabled={ocupado}
+                      className="text-left text-sm bg-[#0c1626] hover:border-[#C9A808] border border-slate-700 rounded-xl px-3 py-2"
+                    >
+                      <span className="mr-1">{msg.icono}</span>{msg.texto}
+                    </button>
+                  ))}
+                  <p className="sm:col-span-2 text-[11px] text-slate-400">Un mensaje por amigo al día.</p>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {enviadas.length > 0 && (
+        <div className="bg-[#14233C] border border-slate-700 rounded-3xl p-5 space-y-2">
+          <h3 className="text-xs font-bold text-slate-300 uppercase tracking-widest">Solicitudes enviadas (esperando respuesta)</h3>
+          {enviadas.map((a) => (
+            <div key={a.amistad_id} className="flex items-center justify-between gap-2 text-sm text-slate-200">
+              <span>{a.amigo_nombre}{a.mio !== activo.id ? ` (de parte de ${a.mio_nombre})` : ''}</span>
+              <button onClick={() => ejecutar(() => supabase.rpc('eliminar_amistad', { p_id: a.amistad_id }), 'Solicitud cancelada.')}
+                className="text-xs text-slate-400 hover:text-red-300 underline underline-offset-2">Cancelar</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// PESTAÑA COMUNIDAD: Familia + Amigos
+// ============================================================================
+export function SocialVista(props) {
+  const { familia, perfilActivo, setPerfilActivo, animos, recargar } = props;
+  const [seccion, setSeccion] = useState('familia');
+  const actuables = familia.miembros.filter((m) => m.puedo_actuar);
+
+  return (
+    <div className="space-y-5">
+      <BandejaMensajes animos={animos} perfilActivo={perfilActivo} recargar={recargar} />
+
+      <div className="grid grid-cols-2 bg-[#14233C] p-1 rounded-xl border border-[#C9A808]/30">
+        {[['familia', 'Mi familia'], ['amigos', 'Amigos']].map(([id, texto]) => (
+          <button
+            key={id}
+            onClick={() => setSeccion(id)}
+            className={`py-2 text-sm font-bold rounded-lg transition ${
+              seccion === id ? 'bg-[#C9A808] text-[#14233C]' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            {texto}
+          </button>
+        ))}
+      </div>
+
+      {seccion === 'amigos' && actuables.length > 1 && (
+        <div className="flex items-center gap-3 bg-[#14233C] border border-[#C9A808]/40 rounded-2xl px-4 py-2.5">
+          <span className="text-xs font-semibold text-[#C9A808] uppercase tracking-wider shrink-0">Amigos de</span>
+          <select
+            value={perfilActivo || ''}
+            onChange={(e) => setPerfilActivo(e.target.value)}
+            className="flex-1 min-w-0 bg-[#0c1626] border border-slate-600 rounded-xl px-3 py-1.5 text-sm text-white outline-none focus:border-[#C9A808]"
+          >
+            {actuables.map((m) => (
+              <option key={m.id} value={m.id}>{m.nombre}{m.id === familia.yo ? ' (tú)' : ''}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {seccion === 'familia' ? <FamiliaVista {...props} /> : <AmigosVista {...props} />}
     </div>
   );
 }
