@@ -3,10 +3,11 @@ import { supabase } from './supabase';
 import {
   BookOpen, Calendar, CheckCircle2, Circle, Flame, Palette,
   LogOut, Sparkles, ChevronLeft, ChevronRight, Lock, User,
-  Award, Check, Compass, UserPlus, Share2, Copy, MessageCircle
+  Award, Check, Compass, UserPlus, Share2, Copy, MessageCircle, Users
 } from 'lucide-react';
 import { PLAN_LECTURAS } from './plan.js';
 import { CITAS_LIAHONA, DIAS_POR_CITA } from './citas.js';
+import { Onboarding, FamiliaVista } from './Familia.jsx';
 
 // ============================================================================
 // 1. PLAN DE 365 LECTURAS (6.604 VERSÍCULOS, LARGO PAREJO) Y ENLACES EN LÍNEA
@@ -359,7 +360,12 @@ export default function App() {
   const [procesandoAuth, setProcesandoAuth] = useState(false);
 
   const [nombreFamilia, setNombreFamilia] = useState('');
-  const [diasCompletados, setDiasCompletados] = useState([]);
+  const [familia, setFamilia] = useState(null);
+  const [sinFamilia, setSinFamilia] = useState(false);
+  const [perfilActivo, setPerfilActivo] = useState(null);
+  const [animos, setAnimos] = useState({ recibidos: [], enviados_hoy: [] });
+  const perfil = familia?.miembros.find((m) => m.id === perfilActivo) || null;
+  const diasCompletados = useMemo(() => perfil?.dias_completados || [], [perfil]);
   const [guardandoNube, setGuardandoNube] = useState(false);
   const [errorNube, setErrorNube] = useState('');
   const [verInvitar, setVerInvitar] = useState(false);
@@ -390,56 +396,48 @@ export default function App() {
     setVistaActiva('hoy');
   };
 
-  const cargarProgresoNube = async (user) => {
-    const nombreGoogle =
-      user.user_metadata?.full_name ||
-      user.user_metadata?.name ||
-      user.user_metadata?.nombre ||
-      user.email.split('@')[0];
-
+  const cargarFamilia = async () => {
     const fallo = (msg) => {
       setErrorNube(msg);
       setProgresoListo(false);
       usuarioCargado.current = null;
     };
 
-    const { data, error } = await supabase
-      .from('progreso_lectura')
-      .select('nombre_familia, dias_completados')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
+    const { data, error } = await supabase.rpc('mi_familia');
     if (error) {
       fallo('No pudimos cargar tu progreso. Revisa tu conexión y recarga la página.');
       return;
     }
-
-    if (data) {
-      setNombreFamilia(data.nombre_familia || nombreGoogle);
-      setDiasCompletados(data.dias_completados || []);
-    } else {
-      setNombreFamilia(nombreGoogle);
-      setDiasCompletados([]);
-      const { error: errCrear } = await supabase.from('progreso_lectura').upsert({
-        user_id: user.id,
-        nombre_familia: nombreGoogle,
-        dias_completados: []
-      });
-      if (errCrear) {
-        fallo('No pudimos crear tu progreso. Recarga la página e inténtalo de nuevo.');
-        return;
-      }
+    if (!data) {
+      // Persona nueva: todavía no creó ni se unió a una familia
+      setFamilia(null);
+      setSinFamilia(true);
+      setProgresoListo(false);
+      setErrorNube('');
+      return;
     }
+
+    setSinFamilia(false);
+    setFamilia(data);
+    setNombreFamilia(data.familia.nombre);
+    setPerfilActivo((actual) =>
+      data.miembros.some((m) => m.id === actual && m.puedo_actuar) ? actual : data.yo
+    );
     setErrorNube('');
     setProgresoListo(true);
+
+    const { data: an } = await supabase.rpc('mis_animos');
+    if (an) setAnimos(an);
   };
 
-  // Carga el progreso una sola vez por usuario (evita recargas repetidas al volver a la pestaña)
+  // Carga la familia una sola vez por usuario (evita recargas repetidas al volver a la pestaña)
   const cargarSiHaceFalta = (user) => {
     if (usuarioCargado.current === user.id) return Promise.resolve();
     usuarioCargado.current = user.id;
-    return cargarProgresoNube(user);
+    return cargarFamilia();
   };
+
+  const recargarFamilia = () => cargarFamilia();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => {
@@ -459,7 +457,10 @@ export default function App() {
         usuarioCargado.current = null;
         setProgresoListo(false);
         setErrorNube('');
-        setDiasCompletados([]);
+        setFamilia(null);
+        setSinFamilia(false);
+        setPerfilActivo(null);
+        setAnimos({ recibidos: [], enviados_hoy: [] });
         setNombreFamilia('');
       }
     });
@@ -498,19 +499,12 @@ export default function App() {
     try {
       if (modoAuth === 'register') {
         const nombreFinal = nombreForm.trim() || emailForm.split('@')[0];
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
           email: emailForm.trim(),
           password: passForm,
           options: { data: { nombre: nombreFinal } }
         });
         if (error) throw error;
-        if (data?.user) {
-          await supabase.from('progreso_lectura').upsert({
-            user_id: data.user.id,
-            nombre_familia: nombreFinal,
-            dias_completados: []
-          });
-        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: emailForm.trim(),
@@ -552,7 +546,7 @@ export default function App() {
   };
 
   const toggleDia = async (numDia) => {
-    if (!session?.user) return;
+    if (!session?.user || !perfil) return;
     if (!progresoListo) {
       setErrorNube('Tu progreso todavía no se cargó. Espera un momento o recarga la página.');
       return;
@@ -562,22 +556,24 @@ export default function App() {
       ? diasCompletados.filter((d) => d !== numDia)
       : [...diasCompletados, numDia].sort((a, b) => a - b);
 
-    setDiasCompletados(nuevosDias);
+    const aplicar = (dias) =>
+      setFamilia((f) => ({
+        ...f,
+        miembros: f.miembros.map((m) => (m.id === perfil.id ? { ...m, dias_completados: dias } : m))
+      }));
+
+    aplicar(nuevosDias);
     setGuardandoNube(true);
     setErrorNube('');
 
-    const { error } = await supabase
-      .from('progreso_lectura')
-      .upsert({
-        user_id: session.user.id,
-        nombre_familia: nombreFamilia,
-        dias_completados: nuevosDias,
-        actualizado_en: new Date().toISOString()
-      });
+    const { error } = await supabase.rpc('guardar_progreso', {
+      p_miembro: perfil.id,
+      p_dias: nuevosDias
+    });
 
     setGuardandoNube(false);
     if (error) {
-      setDiasCompletados(anteriores);
+      aplicar(anteriores);
       setErrorNube('No se pudo guardar tu lectura. Revisa tu conexión e inténtalo de nuevo.');
     }
   };
@@ -759,6 +755,21 @@ export default function App() {
     );
   }
 
+  if (sinFamilia) {
+    return (
+      <Onboarding
+        nombreSugerido={
+          session.user.user_metadata?.full_name ||
+          session.user.user_metadata?.name ||
+          session.user.user_metadata?.nombre ||
+          session.user.email.split('@')[0]
+        }
+        onListo={recargarFamilia}
+        onSalir={cerrarSesion}
+      />
+    );
+  }
+
   // ==========================================================================
   // PANEL PRINCIPAL
   // ==========================================================================
@@ -778,7 +789,7 @@ export default function App() {
                 El Libro de Mormón
               </h1>
               <p className="text-xs text-[#C9A808] flex items-center gap-2">
-                <span>{nombreFamilia}</span>
+                <span>{perfil && perfil.id !== familia?.yo ? `${perfil.nombre} • ${nombreFamilia}` : nombreFamilia}</span>
                 {guardandoNube && <span className="text-[10px] text-slate-400">• Guardando...</span>}
               </p>
             </div>
@@ -865,6 +876,21 @@ export default function App() {
           </div>
         )}
 
+        {familia && familia.miembros.filter((m) => m.puedo_actuar).length > 1 && vistaActiva !== 'familia' && (
+          <div className="flex items-center gap-3 bg-[#14233C] border border-[#C9A808]/40 rounded-2xl px-4 py-2.5">
+            <span className="text-xs font-semibold text-[#C9A808] uppercase tracking-wider shrink-0">Leyendo como</span>
+            <select
+              value={perfilActivo || ''}
+              onChange={(e) => setPerfilActivo(e.target.value)}
+              className="flex-1 min-w-0 bg-[#0c1626] border border-slate-600 rounded-xl px-3 py-1.5 text-sm text-white outline-none focus:border-[#C9A808]"
+            >
+              {familia.miembros.filter((m) => m.puedo_actuar).map((m) => (
+                <option key={m.id} value={m.id}>{m.nombre}{m.id === familia.yo ? ' (tú)' : ''}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {errorNube && (
           <p className="text-sm text-red-300 bg-red-950/50 border border-red-500/40 rounded-xl p-3">
             {errorNube}
@@ -902,12 +928,13 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="grid grid-cols-4 bg-[#14233C] p-1.5 rounded-2xl border border-[#C9A808]/40 gap-1">
+        <nav className="grid grid-cols-5 bg-[#14233C] p-1.5 rounded-2xl border border-[#C9A808]/40 gap-1">
           {[
             { id: 'hoy', label: 'Hoy', icon: BookOpen },
             { id: 'semana', label: 'Semana', icon: Calendar },
             { id: 'anual', label: 'Plan Anual', icon: Check },
-            { id: 'mural', label: 'Mural Niños', icon: Palette }
+            { id: 'mural', label: 'Mural', icon: Palette },
+            { id: 'familia', label: 'Familia', icon: Users }
           ].map((tab) => {
             const Icono = tab.icon;
             const activa = vistaActiva === tab.id;
@@ -915,7 +942,7 @@ export default function App() {
               <button
                 key={tab.id}
                 onClick={() => setVistaActiva(tab.id)}
-                className={`flex items-center justify-center gap-2 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition ${
+                className={`relative flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 py-2 sm:py-2.5 px-1 sm:px-2 rounded-xl text-[10px] sm:text-sm font-bold transition ${
                   activa
                     ? 'bg-[#C9A808] text-[#14233C] shadow-md'
                     : 'text-slate-300 hover:text-white hover:bg-[#0c1626]/50'
@@ -923,6 +950,9 @@ export default function App() {
               >
                 <Icono className="w-4 h-4" />
                 <span>{tab.label}</span>
+                {tab.id === 'familia' && animos.recibidos.some((a) => !a.leido) && (
+                  <span className="absolute top-1 right-2 w-2.5 h-2.5 rounded-full bg-red-500" />
+                )}
               </button>
             );
           })}
@@ -989,6 +1019,18 @@ export default function App() {
 
         {/* VISTA 2: CRONOGRAMA SEMANAL */}
         {vistaActiva === 'hoy' && <Liahona diasLeidos={diasCompletados.length} />}
+
+        {vistaActiva === 'familia' && familia && (
+          <FamiliaVista
+            familia={familia}
+            perfilActivo={perfilActivo}
+            setPerfilActivo={setPerfilActivo}
+            diaHoy={diaHoyNumero}
+            animos={animos}
+            recargar={recargarFamilia}
+            irAHoy={irAHoy}
+          />
+        )}
 
         {vistaActiva === 'semana' && (
           <div className="bg-[#14233C] border border-[#C9A808]/50 rounded-3xl p-6 space-y-4">
