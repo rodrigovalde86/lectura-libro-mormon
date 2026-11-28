@@ -19,130 +19,6 @@ const inputCls =
 const labelCls = 'block text-xs font-semibold text-[#C9A808] uppercase tracking-wider mb-1';
 
 // ============================================================================
-// PRIMERA VEZ: crear la familia o unirse con un código
-// ============================================================================
-export function Onboarding({ nombreSugerido, onListo, onSalir }) {
-  const [modo, setModo] = useState('crear');
-  const [miNombre, setMiNombre] = useState(nombreSugerido || '');
-  const [nombreFamilia, setNombreFamilia] = useState('');
-  const [codigo, setCodigo] = useState('');
-  const [error, setError] = useState('');
-  const [cargando, setCargando] = useState(false);
-
-  const crear = async (e) => {
-    e.preventDefault();
-    setError('');
-    setCargando(true);
-    const { error: err } = await supabase.rpc('crear_familia', {
-      p_nombre: nombreFamilia.trim() || miNombre.trim(),
-      p_mi_nombre: miNombre.trim()
-    });
-    setCargando(false);
-    if (err) return setError(err.message);
-    onListo();
-  };
-
-  const unirse = async (e) => {
-    e.preventDefault();
-    setError('');
-    setCargando(true);
-    const { error: err } = await supabase.rpc('vincular_cuenta', { p_codigo: codigo });
-    setCargando(false);
-    if (err) return setError(err.message);
-    onListo();
-  };
-
-  return (
-    <div className="min-h-screen bg-[#0c1626] text-white flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-[#14233C] border-2 border-[#C9A808] rounded-3xl p-8 shadow-2xl space-y-6">
-        <div className="text-center">
-          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-[#0c1626] border-2 border-[#C9A808] flex items-center justify-center">
-            <Users className="w-7 h-7 text-[#C9A808]" />
-          </div>
-          <h1 className="text-2xl font-serif font-bold">Tu familia de lectura</h1>
-          <p className="text-sm text-slate-300 mt-1">
-            Cada persona tiene su propio avance. Quien crea la familia puede agregar a sus hijos.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 bg-[#0c1626] p-1 rounded-xl border border-[#C9A808]/30">
-          {[['crear', 'Empezar'], ['unirse', 'Tengo un código']].map(([id, texto]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => { setModo(id); setError(''); }}
-              className={`py-2 text-sm font-semibold rounded-lg transition ${
-                modo === id ? 'bg-[#C9A808] text-[#14233C]' : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              {texto}
-            </button>
-          ))}
-        </div>
-
-        {modo === 'crear' ? (
-          <form onSubmit={crear} className="space-y-4">
-            <div>
-              <label className={labelCls}>Tu nombre</label>
-              <input className={inputCls} value={miNombre} onChange={(e) => setMiNombre(e.target.value)} maxLength={40} />
-            </div>
-            <div>
-              <label className={labelCls}>Nombre de la familia (opcional)</label>
-              <input
-                className={inputCls}
-                placeholder="Nombre o Familia"
-                value={nombreFamilia}
-                onChange={(e) => setNombreFamilia(e.target.value)}
-                maxLength={60}
-              />
-            </div>
-            {error && <p className="text-xs text-red-400 bg-red-950/50 border border-red-500/40 rounded-lg p-2.5">{error}</p>}
-            <button
-              type="submit"
-              disabled={cargando || !miNombre.trim()}
-              className="w-full bg-[#C9A808] hover:bg-[#b59607] disabled:opacity-50 text-[#14233C] font-bold py-3 rounded-xl"
-            >
-              {cargando ? 'Creando...' : 'Empezar a leer'}
-            </button>
-            <p className="text-xs text-slate-400">
-              Si lees solo/a, no necesitas nada más. Después puedes agregar a tus hijos desde la pestaña Familia.
-            </p>
-          </form>
-        ) : (
-          <form onSubmit={unirse} className="space-y-4">
-            <p className="text-sm text-slate-300">
-              Si alguien de tu familia ya creó el grupo, pídele el código de tu perfil e ingrésalo aquí.
-            </p>
-            <div>
-              <label className={labelCls}>Código</label>
-              <input
-                className={`${inputCls} tracking-[0.3em] uppercase text-center text-lg`}
-                value={codigo}
-                onChange={(e) => setCodigo(e.target.value)}
-                maxLength={8}
-                placeholder="XXXXXXXX"
-              />
-            </div>
-            {error && <p className="text-xs text-red-400 bg-red-950/50 border border-red-500/40 rounded-lg p-2.5">{error}</p>}
-            <button
-              type="submit"
-              disabled={cargando || codigo.trim().length < 6}
-              className="w-full bg-[#C9A808] hover:bg-[#b59607] disabled:opacity-50 text-[#14233C] font-bold py-3 rounded-xl"
-            >
-              {cargando ? 'Uniendo...' : 'Unirme a mi familia'}
-            </button>
-          </form>
-        )}
-
-        <button onClick={onSalir} className="w-full text-xs text-slate-400 hover:text-[#C9A808]">
-          Salir
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
 // PESTAÑA FAMILIA
 // ============================================================================
 export function FamiliaVista({ familia, perfilActivo, setPerfilActivo, diaHoy, animos, recargar, irAHoy }) {
@@ -154,6 +30,7 @@ export function FamiliaVista({ familia, perfilActivo, setPerfilActivo, diaHoy, a
   const [animando, setAnimando] = useState(null);
   const [codigos, setCodigos] = useState({});
   const [ocupado, setOcupado] = useState(false);
+  const [codigoUnirse, setCodigoUnirse] = useState('');
 
   const miembros = familia.miembros;
   const soyAdmin = familia.soy_admin;
@@ -220,6 +97,15 @@ export function FamiliaVista({ familia, perfilActivo, setPerfilActivo, diaHoy, a
     } catch (e) {
       window.prompt('Copia este texto:', texto);
     }
+  };
+
+  const unirse = async (e) => {
+    e.preventDefault();
+    const r = await ejecutar(
+      () => supabase.rpc('vincular_cuenta', { p_codigo: codigoUnirse }),
+      '¡Listo! Ya estás en la familia.'
+    );
+    if (r.ok) setCodigoUnirse('');
   };
 
   const enviarAnimo = async (m, tipo) => {
@@ -421,6 +307,28 @@ export function FamiliaVista({ familia, perfilActivo, setPerfilActivo, diaHoy, a
             </form>
           )}
         </div>
+      )}
+
+      {miembros.length === 1 && (
+        <form onSubmit={unirse} className="bg-[#14233C] border border-slate-700 rounded-3xl p-5 sm:p-6 space-y-2">
+          <label className={labelCls}>¿Tu familia ya te creó un perfil?</label>
+          <p className="text-xs text-slate-300">
+            Escribe el código que te dieron para unirte a su grupo. Tu avance de lectura se conserva.
+          </p>
+          <div className="flex gap-2">
+            <input
+              className={`${inputCls} tracking-[0.25em] uppercase`}
+              value={codigoUnirse}
+              onChange={(e) => setCodigoUnirse(e.target.value)}
+              maxLength={8}
+              placeholder="CÓDIGO"
+            />
+            <button type="submit" disabled={ocupado || codigoUnirse.trim().length < 6}
+              className="shrink-0 bg-[#C9A808] hover:bg-[#b59607] disabled:opacity-50 text-[#14233C] font-bold px-4 rounded-xl text-sm">
+              Unirme
+            </button>
+          </div>
+        </form>
       )}
     </div>
   );

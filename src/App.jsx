@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { PLAN_LECTURAS } from './plan.js';
 import { CITAS_LIAHONA, DIAS_POR_CITA } from './citas.js';
-import { Onboarding, SocialVista } from './Familia.jsx';
+import { SocialVista } from './Familia.jsx';
 
 // ============================================================================
 // 1. PLAN DE 365 LECTURAS (6.604 VERSÍCULOS, LARGO PAREJO) Y ENLACES EN LÍNEA
@@ -361,7 +361,6 @@ export default function App() {
 
   const [nombreFamilia, setNombreFamilia] = useState('');
   const [familia, setFamilia] = useState(null);
-  const [sinFamilia, setSinFamilia] = useState(false);
   const [perfilActivo, setPerfilActivo] = useState(null);
   const [animos, setAnimos] = useState({ recibidos: [], enviados_hoy: [] });
   const perfil = familia?.miembros.find((m) => m.id === perfilActivo) || null;
@@ -396,7 +395,7 @@ export default function App() {
     setVistaActiva('hoy');
   };
 
-  const cargarFamilia = async () => {
+  const cargarFamilia = async (reintento = false) => {
     const fallo = (msg) => {
       setErrorNube(msg);
       setProgresoListo(false);
@@ -409,15 +408,24 @@ export default function App() {
       return;
     }
     if (!data) {
-      // Persona nueva: todavía no creó ni se unió a una familia
-      setFamilia(null);
-      setSinFamilia(true);
-      setProgresoListo(false);
-      setErrorNube('');
-      return;
+      // Persona nueva: se prepara su perfil automáticamente (ella sola). Después puede agregar a su familia.
+      if (reintento) {
+        fallo('No pudimos preparar tu perfil. Recarga la página e inténtalo de nuevo.');
+        return;
+      }
+      const { data: { session: ses } } = await supabase.auth.getSession();
+      const u = ses?.user;
+      const nombre =
+        u?.user_metadata?.full_name || u?.user_metadata?.name || u?.user_metadata?.nombre ||
+        u?.email?.split('@')[0] || 'Mi familia';
+      const { error: errCrear } = await supabase.rpc('crear_familia', { p_nombre: nombre, p_mi_nombre: nombre });
+      if (errCrear) {
+        fallo('No pudimos preparar tu perfil. Recarga la página e inténtalo de nuevo.');
+        return;
+      }
+      return cargarFamilia(true);
     }
 
-    setSinFamilia(false);
     setFamilia(data);
     setNombreFamilia(data.familia.nombre);
     setPerfilActivo((actual) =>
@@ -458,7 +466,6 @@ export default function App() {
         setProgresoListo(false);
         setErrorNube('');
         setFamilia(null);
-        setSinFamilia(false);
         setPerfilActivo(null);
         setAnimos({ recibidos: [], enviados_hoy: [] });
         setNombreFamilia('');
@@ -755,21 +762,6 @@ export default function App() {
     );
   }
 
-  if (sinFamilia) {
-    return (
-      <Onboarding
-        nombreSugerido={
-          session.user.user_metadata?.full_name ||
-          session.user.user_metadata?.name ||
-          session.user.user_metadata?.nombre ||
-          session.user.email.split('@')[0]
-        }
-        onListo={recargarFamilia}
-        onSalir={cerrarSesion}
-      />
-    );
-  }
-
   // ==========================================================================
   // PANEL PRINCIPAL
   // ==========================================================================
@@ -810,8 +802,21 @@ export default function App() {
               onClick={() => setVerInvitar((v) => !v)}
               className="flex items-center gap-1.5 text-xs font-bold text-[#C9A808] bg-[#0c1626] px-3 py-2 rounded-xl border border-[#C9A808]/60 hover:border-[#C9A808] transition"
             >
-              <UserPlus className="w-4 h-4" />
+              <Share2 className="w-4 h-4" />
               <span>Invitar</span>
+            </button>
+
+            <button
+              onClick={() => { setVerInvitar(false); setVistaActiva('familia'); }}
+              aria-label="Mi familia y amigos"
+              title="Mi familia y amigos"
+              className="relative flex items-center gap-1.5 text-xs font-bold text-[#C9A808] bg-[#0c1626] px-3 py-2 rounded-xl border border-[#C9A808]/60 hover:border-[#C9A808] transition"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">Familia</span>
+              {animos.recibidos.some((a) => !a.leido) && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500" />
+              )}
             </button>
 
             <button
@@ -928,13 +933,12 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="grid grid-cols-5 bg-[#14233C] p-1.5 rounded-2xl border border-[#C9A808]/40 gap-1">
+        <nav className="grid grid-cols-4 bg-[#14233C] p-1.5 rounded-2xl border border-[#C9A808]/40 gap-1">
           {[
             { id: 'hoy', label: 'Hoy', icon: BookOpen },
             { id: 'semana', label: 'Semana', icon: Calendar },
             { id: 'anual', label: 'Plan Anual', icon: Check },
-            { id: 'mural', label: 'Mural', icon: Palette },
-            { id: 'familia', label: 'Comunidad', icon: Users }
+            { id: 'mural', label: 'Mural Niños', icon: Palette }
           ].map((tab) => {
             const Icono = tab.icon;
             const activa = vistaActiva === tab.id;
@@ -950,9 +954,6 @@ export default function App() {
               >
                 <Icono className="w-4 h-4" />
                 <span>{tab.label}</span>
-                {tab.id === 'familia' && animos.recibidos.some((a) => !a.leido) && (
-                  <span className="absolute top-1 right-2 w-2.5 h-2.5 rounded-full bg-red-500" />
-                )}
               </button>
             );
           })}
