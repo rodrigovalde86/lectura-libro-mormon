@@ -40,6 +40,16 @@ export const CITAS_LIAHONA = [
     fuente: 'El Libro de Mormón: ¿Cómo sería su vida sin él?, octubre de 2017'
   },
   {
+    texto: '…pocas cosas edifican más la fe que el estudio regular y sincero del Libro de Mormón. Ningún otro libro testifica de Jesucristo con tanto poder y claridad.',
+    autor: 'Russell M. Nelson',
+    fuente: 'Acoger el futuro con fe, octubre de 2020'
+  },
+  {
+    texto: 'El Libro de Mormón es nuestro manual de supervivencia en los últimos días.',
+    autor: 'Russell M. Nelson',
+    fuente: 'Acoger el futuro con fe, octubre de 2020'
+  },
+  {
     texto: '…testifico que el Libro de Mormón es ciertamente la palabra de Dios.',
     autor: 'Russell M. Nelson',
     fuente: 'El Libro de Mormón: ¿Cómo sería su vida sin él?, octubre de 2017'
